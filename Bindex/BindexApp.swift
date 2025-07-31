@@ -12,7 +12,8 @@ import SwiftData
 struct BindexApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            PokemonSet.self,
+            PokemonCard.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
