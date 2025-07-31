@@ -1,61 +1,59 @@
-//
-//  ContentView.swift
-//  Bindex
-//
-//  Created by Tyler Keegan on 2/20/25.
-//
-
 import SwiftUI
-import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @State private var sets: [PokemonSet] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String?
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+        NavigationStack {
+            Group {
+                if isLoading {
+                    ProgressView()
+                } else if let errorMessage {
+                    VStack {
+                        Text("Failed to load sets")
+                        Text(errorMessage)
+                            .font(.caption)
+                    }
+                } else {
+                    List(sets) { set in
+                        NavigationLink(destination: CardListView(setID: set.id)) {
+                            HStack {
+                                AsyncImage(url: URL(string: set.images.symbol)) { image in
+                                    image
+                                        .resizable()
+                                        .scaledToFit()
+                                } placeholder: {
+                                    Color.gray.opacity(0.3)
+                                }
+                                .frame(width: 40, height: 40)
+                                Text(set.name)
+                                    .font(.headline)
+                            }
+                        }
                     }
                 }
-                .onDelete(perform: deleteItems)
             }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
-        } detail: {
-            Text("Select an item")
+            .navigationTitle("Sets")
+        }
+        .task {
+            await loadSets()
         }
     }
 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
+    private func loadSets() async {
+        isLoading = true
+        do {
+            sets = try await PokemonTCGService.shared.fetchSets()
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
         }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
-            }
-        }
+        isLoading = false
     }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
 }
