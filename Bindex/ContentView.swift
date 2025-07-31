@@ -1,61 +1,78 @@
-//
-//  ContentView.swift
-//  Bindex
-//
-//  Created by Tyler Keegan on 2/20/25.
-//
-
 import SwiftUI
 import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    private let service = PokemonService()
+
+    @Query(sort: \PokemonSet.releaseDate, order: .reverse) private var sets: [PokemonSet]
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+        NavigationStack {
+            List(sets) { set in
+                NavigationLink(destination: CardListView(set: set)) {
+                    VStack(alignment: .leading) {
+                        Text(set.name)
+                        Text(set.series).font(.caption)
                     }
                 }
-                .onDelete(perform: deleteItems)
+            }
+            .navigationTitle("Sets")
+            .task {
+                if sets.isEmpty {
+                    await refresh()
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+                    Button("Refresh") {
+                        Task { await refresh() }
                     }
                 }
             }
-        } detail: {
-            Text("Select an item")
         }
     }
 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+    private func refresh() async {
+        do {
+            let fetched = try await service.fetchSets()
+            try await MainActor.run {
+                sync(sets: fetched)
             }
+        } catch {
+            print("Failed to fetch sets: \(error)")
+        }
+    }
+
+    private func sync(sets apiSets: [APISet]) {
+        let existing = Dictionary(uniqueKeysWithValues: sets.map { ($0.id, $0) })
+        var idsToKeep: Set<String> = []
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy/MM/dd"
+
+        for api in apiSets {
+            idsToKeep.insert(api.id)
+            let date = formatter.date(from: api.releaseDate) ?? Date()
+            if let set = existing[api.id] {
+                set.name = api.name
+                set.series = api.series
+                set.releaseDate = date
+            } else {
+                let newSet = PokemonSet(id: api.id,
+                                        name: api.name,
+                                        series: api.series,
+                                        releaseDate: date)
+                modelContext.insert(newSet)
+            }
+        }
+
+        for set in sets where !idsToKeep.contains(set.id) {
+            modelContext.delete(set)
         }
     }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+        .modelContainer(for: [PokemonSet.self, PokemonCard.self], inMemory: true)
 }
