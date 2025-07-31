@@ -48,8 +48,10 @@ struct ContentView: View {
 
     private func deleteItems(offsets: IndexSet) {
         withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+            // Map the offsets to the corresponding items before deleting
+            // to avoid index shifting as the collection mutates.
+            for item in offsets.map({ items[$0] }) {
+                modelContext.delete(item)
             }
         }
     }
