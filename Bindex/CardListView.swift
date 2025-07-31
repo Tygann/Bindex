@@ -14,8 +14,11 @@ struct CardListView: View {
     }
 
     var body: some View {
-        List(cards) { card in
-            Text(card.name)
+        List {
+            ForEach(cards) { card in
+                Text(card.name)
+            }
+            .onDelete(perform: deleteCards)
         }
         .navigationTitle(set.name)
         .task {
@@ -24,6 +27,9 @@ struct CardListView: View {
             }
         }
         .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                EditButton()
+            }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Refresh") {
                     Task { await refresh() }
@@ -63,6 +69,14 @@ struct CardListView: View {
 
         for card in cards where !idsToKeep.contains(card.id) {
             modelContext.delete(card)
+        }
+    }
+
+    private func deleteCards(at offsets: IndexSet) {
+        withAnimation {
+            for card in offsets.map({ cards[$0] }) {
+                modelContext.delete(card)
+            }
         }
     }
 }

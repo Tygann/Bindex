@@ -9,13 +9,16 @@ struct ContentView: View {
 
     var body: some View {
         NavigationStack {
-            List(sets) { set in
-                NavigationLink(destination: CardListView(set: set)) {
-                    VStack(alignment: .leading) {
-                        Text(set.name)
-                        Text(set.series).font(.caption)
+            List {
+                ForEach(sets) { set in
+                    NavigationLink(destination: CardListView(set: set)) {
+                        VStack(alignment: .leading) {
+                            Text(set.name)
+                            Text(set.series).font(.caption)
+                        }
                     }
                 }
+                .onDelete(perform: deleteSets)
             }
             .navigationTitle("Sets")
             .task {
@@ -24,6 +27,9 @@ struct ContentView: View {
                 }
             }
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    EditButton()
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Refresh") {
                         Task { await refresh() }
@@ -68,6 +74,14 @@ struct ContentView: View {
 
         for set in sets where !idsToKeep.contains(set.id) {
             modelContext.delete(set)
+        }
+    }
+
+    private func deleteSets(at offsets: IndexSet) {
+        withAnimation {
+            for set in offsets.map({ sets[$0] }) {
+                modelContext.delete(set)
+            }
         }
     }
 }
